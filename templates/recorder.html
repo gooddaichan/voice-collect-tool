@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recorder</title>
+</head>
+<body>
+    <h1>ようこそ, {{ user_id }}さん</h1>
+    {% for id, text in texts.items() %}
+        <div>
+            <button id="recordButton_{{ id }}">Record</button>
+            <button id="stopButton_{{ id }}" disabled>Stop</button>
+            {{ id }} {{ text }}
+        </div>
+    {% endfor %}
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let currentRecordingId = null;
+    
+        function startRecording(id) {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = e => {
+                        audioChunks.push(e.data);
+                    };
+                    mediaRecorder.onstop = e => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const formData = new FormData();
+                        formData.append("audio_data", audioBlob);
+                        formData.append("user_id", "{{ user_id }}");
+                        formData.append("text_id", id);
+    
+                        fetch("/upload", { method: "POST", body: formData });
+    
+                        audioChunks = [];
+                        document.getElementById(`recordButton_${id}`).disabled = false;
+                        document.getElementById(`stopButton_${id}`).disabled = true;
+                    };
+                    mediaRecorder.start();
+                    currentRecordingId = id;
+    
+                    document.getElementById(`recordButton_${id}`).disabled = true;
+                    document.getElementById(`stopButton_${id}`).disabled = false;
+                })
+                .catch(error => {
+                    console.error("Error accessing media devices:", error);
+                });
+        }
+    
+        function stopRecording(id) {
+            if (mediaRecorder && id === currentRecordingId) {
+                mediaRecorder.stop();
+                mediaRecorder = null;
+                currentRecordingId = null;
+            }
+        }
+    
+        // 以下のコードは、各テキストに対してRecordとStopボタンの動作を設定します。
+        document.addEventListener('DOMContentLoaded', (event) => {
+            {% for id, text in texts.items() %}
+                document.getElementById(`recordButton_{{ id }}`).addEventListener("click", function() {
+                    startRecording("{{ id }}");
+                });
+                document.getElementById(`stopButton_{{ id }}`).addEventListener("click", function() {
+                    stopRecording("{{ id }}");
+                });
+            {% endfor %}
+        });
+    </script>
+</body>
+</html>
